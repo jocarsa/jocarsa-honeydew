@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub-Like Code Comparator</title>
+    <style>
+        /* Reset and Basic Styling */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f6f8fa;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #24292e;
+            margin-bottom: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .textareas {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .textareas {
+                flex-direction: row;
+            }
+        }
+
+        textarea {
+            width: 100%;
+            height: 300px;
+            padding: 10px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            border: 1px solid #d1d5da;
+            border-radius: 4px;
+            resize: vertical;
+            background-color: #ffffff;
+            color: #24292e;
+        }
+
+        .button-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 10px 25px;
+            font-size: 16px;
+            background-color: #28a745;
+            border: none;
+            color: #ffffff;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        .diff-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background-color: #ffffff;
+            padding: 20px;
+            border: 1px solid #d1d5da;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+
+        .diff-header {
+            display: flex;
+            background-color: #f6f8fa;
+            padding: 10px;
+            border-bottom: 1px solid #d1d5da;
+        }
+
+        .diff-header div {
+            flex: 1;
+            text-align: center;
+            font-weight: bold;
+            color: #586069;
+        }
+
+        .diff-body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .diff-line {
+            display: flex;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+        }
+
+        .line-number {
+            width: 50px;
+            padding: 0 10px;
+            text-align: right;
+            color: #6a737d;
+            user-select: none;
+            border-right: 1px solid #d1d5da;
+        }
+
+        .line-content {
+            padding: 0 10px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            flex: 1;
+        }
+
+        .unchanged {
+            background-color: #ffffff;
+        }
+
+        .added {
+            background-color: #e6ffed;
+        }
+
+        .removed {
+            background-color: #ffeef0;
+        }
+
+        .similarity {
+            text-align: right;
+            margin-top: 10px;
+            font-size: 16px;
+            color: #586069;
+        }
+
+        /* Scrollbar Styling */
+        .diff-container::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+
+        .diff-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .diff-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        .diff-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+    </style>
+</head>
+<body>
+    <h1>GitHub-Like Code Comparator</h1>
+    <div class="container">
+        <div class="textareas">
+            <textarea id="code1" placeholder="Enter first code block here...">
+// Example JavaScript Code
+function greet(name) {
+    console.log("Hello, " + name + "!");
+}
+greet("World");
+            </textarea>
+            <textarea id="code2" placeholder="Enter second code block here...">
+// Modified JavaScript Code
+function greet(person) {
+    console.log(`Hello, ${person}!`);
+}
+greet("World");
+greet("Everyone");
+            </textarea>
+        </div>
+        <div class="button-container">
+            <button onclick="compareCodes()">Compare</button>
+        </div>
+        <div class="diff-container" id="diff-container">
+            <!-- Diff results will be rendered here -->
+        </div>
+        <div class="similarity" id="similarity">
+            <!-- Similarity index will be displayed here -->
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Compares two code blocks and displays the differences in a GitHub-like format.
+         */
+        function compareCodes() {
+            const code1 = document.getElementById('code1').value;
+            const code2 = document.getElementById('code2').value;
+            const diffContainer = document.getElementById('diff-container');
+            const similarityDiv = document.getElementById('similarity');
+
+            // Clear previous results
+            diffContainer.innerHTML = '';
+            similarityDiv.innerHTML = '';
+
+            // Split codes into lines
+            const lines1 = code1.split('\n');
+            const lines2 = code2.split('\n');
+
+            // Generate diff data
+            const diffData = generateDiff(lines1, lines2);
+
+            // Render diff
+            renderDiff(diffData, diffContainer);
+
+            // Calculate similarity index
+            const similarity = calculateSimilarity(lines1, lines2);
+            similarityDiv.textContent = `Similarity Index: ${similarity.toFixed(2)}%`;
+        }
+
+        /**
+         * Generates a diff between two arrays of lines.
+         * Returns an array of objects with type and content.
+         */
+        function generateDiff(lines1, lines2) {
+            const diff = [];
+            const maxLength = Math.max(lines1.length, lines2.length);
+            let i = 0, j = 0;
+
+            while (i < lines1.length || j < lines2.length) {
+                if (i < lines1.length && j < lines2.length) {
+                    if (lines1[i] === lines2[j]) {
+                        diff.push({ type: 'unchanged', content: lines1[i] });
+                        i++;
+                        j++;
+                    } else {
+                        // Look ahead to see if a line was added or removed
+                        if (j + 1 < lines2.length && lines1[i] === lines2[j + 1]) {
+                            diff.push({ type: 'added', content: lines2[j] });
+                            j++;
+                        } else if (i + 1 < lines1.length && lines1[i + 1] === lines2[j]) {
+                            diff.push({ type: 'removed', content: lines1[i] });
+                            i++;
+                        } else {
+                            // Modification
+                            diff.push({ type: 'removed', content: lines1[i] });
+                            diff.push({ type: 'added', content: lines2[j] });
+                            i++;
+                            j++;
+                        }
+                    }
+                } else if (i < lines1.length) {
+                    diff.push({ type: 'removed', content: lines1[i] });
+                    i++;
+                } else if (j < lines2.length) {
+                    diff.push({ type: 'added', content: lines2[j] });
+                    j++;
+                }
+            }
+
+            return diff;
+        }
+
+        /**
+         * Renders the diff data into the specified container.
+         */
+        function renderDiff(diffData, container) {
+            // Create header
+            const header = document.createElement('div');
+            header.classList.add('diff-header');
+            header.innerHTML = `<div>Original</div><div>Modified</div>`;
+            container.appendChild(header);
+
+            // Create body
+            const body = document.createElement('div');
+            body.classList.add('diff-body');
+
+            let originalLineNumber = 1;
+            let modifiedLineNumber = 1;
+
+            diffData.forEach(part => {
+                const line = document.createElement('div');
+                line.classList.add('diff-line');
+
+                const lineNumberOriginal = document.createElement('div');
+                lineNumberOriginal.classList.add('line-number');
+                const lineNumberModified = document.createElement('div');
+                lineNumberModified.classList.add('line-number');
+
+                const lineContentOriginal = document.createElement('div');
+                lineContentOriginal.classList.add('line-content');
+                const lineContentModified = document.createElement('div');
+                lineContentModified.classList.add('line-content');
+
+                switch (part.type) {
+                    case 'unchanged':
+                        line.classList.add('unchanged');
+                        lineNumberOriginal.textContent = originalLineNumber++;
+                        lineNumberModified.textContent = modifiedLineNumber++;
+                        lineContentOriginal.textContent = part.content;
+                        lineContentModified.textContent = part.content;
+                        break;
+                    case 'added':
+                        line.classList.add('added');
+                        lineNumberOriginal.textContent = '';
+                        lineNumberModified.textContent = modifiedLineNumber++;
+                        lineContentOriginal.textContent = '';
+                        lineContentModified.textContent = part.content;
+                        break;
+                    case 'removed':
+                        line.classList.add('removed');
+                        lineNumberOriginal.textContent = originalLineNumber++;
+                        lineNumberModified.textContent = '';
+                        lineContentOriginal.textContent = part.content;
+                        lineContentModified.textContent = '';
+                        break;
+                }
+
+                line.appendChild(lineNumberOriginal);
+                line.appendChild(lineContentOriginal);
+                line.appendChild(lineNumberModified);
+                line.appendChild(lineContentModified);
+
+                body.appendChild(line);
+            });
+
+            container.appendChild(body);
+        }
+
+        /**
+         * Calculates the similarity index between two arrays of lines.
+         * Returns a percentage value.
+         */
+        function calculateSimilarity(lines1, lines2) {
+            const totalLines = Math.max(lines1.length, lines2.length);
+            let matchingLines = 0;
+
+            const set1 = new Set(lines1.map(line => line.trim()));
+            const set2 = new Set(lines2.map(line => line.trim()));
+
+            set1.forEach(line => {
+                if (set2.has(line)) {
+                    matchingLines++;
+                }
+            });
+
+            return (matchingLines / totalLines) * 100;
+        }
+
+        // Optional: Trigger comparison when pressing Enter with Ctrl or Cmd
+        document.addEventListener('keydown', function(event) {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                compareCodes();
+            }
+        });
+    </script>
+</body>
+</html>
+
